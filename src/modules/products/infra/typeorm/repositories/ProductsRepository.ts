@@ -1,3 +1,4 @@
+import AppError from '@shared/errors/AppError';
 import { getRepository, Repository, In } from 'typeorm';
 
 import IProductsRepository from '@modules/products/repositories/IProductsRepository';
@@ -41,13 +42,39 @@ class ProductsRepository implements IProductsRepository {
   }
 
   public async findAllById(products: IFindProducts[]): Promise<Product[]> {
-    // TODO
+    const ids = products.map(product => product.id);
+
+    const orderList = await this.ormRepository.find({ id: In(ids) });
+
+    if (ids.length !== orderList.length)
+      throw new AppError('Missing Product in products list');
+
+    return orderList;
   }
 
   public async updateQuantity(
     products: IUpdateProductsQuantityDTO[],
   ): Promise<Product[]> {
-    // TODO
+    const findProducts = await this.findAllById(products);
+    const newProducts = findProducts.map(product => {
+      const findProduct = products.find(
+        productData => productData.id === product.id,
+      );
+
+      if (!findProduct) throw new AppError('Product not found');
+      if (product.quantity < findProduct.quantity)
+        throw new AppError('Insufficiente product quantity');
+
+      const newProduct = product;
+
+      newProduct.quantity -= findProduct.quantity;
+
+      return newProduct;
+    });
+
+    await this.ormRepository.save(newProducts);
+
+    return newProducts;
   }
 }
 
